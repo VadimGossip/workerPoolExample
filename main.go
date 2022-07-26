@@ -37,7 +37,7 @@ func main() {
 	rand.Seed(time.Now().Unix())
 	users := make(chan User, count)
 	var wg = sync.WaitGroup{}
-	for i := 0; i < 1; i++ {
+	for i := 0; i < count; i++ {
 		go worker(users, &wg)
 	}
 	generateUsers(count, users, &wg)
