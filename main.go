@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -35,21 +36,19 @@ func main() {
 	var count = 100
 	rand.Seed(time.Now().Unix())
 	users := make(chan User, count)
-	for i := 0; i < count; i++ {
-		go worker(users)
+	var wg = sync.WaitGroup{}
+	for i := 0; i < 1; i++ {
+		go worker(users, &wg)
 	}
-	generateUsers(count, users)
-
+	generateUsers(count, users, &wg)
+	wg.Wait()
 	fmt.Printf("DONE! Time Elapsed: %.2f seconds\n", time.Since(startTime).Seconds())
 }
 
-func worker(users <-chan User) {
-	for {
-		user, ok := <-users
-		if !ok {
-			return
-		}
+func worker(users <-chan User, wg *sync.WaitGroup) {
+	for user := range users {
 		saveUserInfo(user)
+		wg.Done()
 	}
 }
 
@@ -66,9 +65,10 @@ func saveUserInfo(user User) {
 	time.Sleep(time.Second)
 }
 
-func generateUsers(count int, users chan<- User) {
+func generateUsers(count int, users chan<- User, wg *sync.WaitGroup) {
 
 	for i := 0; i < count; i++ {
+		wg.Add(1)
 		users <- User{
 			id:    i + 1,
 			email: fmt.Sprintf("user%d@company.com", i+1),
@@ -77,7 +77,6 @@ func generateUsers(count int, users chan<- User) {
 		fmt.Printf("generated user %d\n", i+1)
 		time.Sleep(time.Millisecond * 100)
 	}
-
 	close(users)
 }
 
