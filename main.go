@@ -35,18 +35,36 @@ func main() {
 	startTime := time.Now()
 	var count = 100
 	rand.Seed(time.Now().Unix())
-	users := make(chan User, count)
-	var wg = sync.WaitGroup{}
+
+	genJobs := make(chan int, count)
+	putJobs := make(chan User, count)
+
+	var wg = &sync.WaitGroup{}
 	for i := 0; i < count; i++ {
-		go worker(users, &wg)
+		go genWorker(genJobs, putJobs)
+		go putWorker(putJobs, wg)
 	}
-	generateUsers(count, users, &wg)
+	generateUsers(count, genJobs, wg)
 	wg.Wait()
 	fmt.Printf("DONE! Time Elapsed: %.2f seconds\n", time.Since(startTime).Seconds())
 }
 
-func worker(users <-chan User, wg *sync.WaitGroup) {
-	for user := range users {
+func genWorker(genJobs <-chan int, putJobs chan<- User) {
+	for {
+		id, ok := <-genJobs
+		if !ok {
+			return
+		}
+		generateUserInfo(id, putJobs)
+	}
+}
+
+func putWorker(putJobs <-chan User, wg *sync.WaitGroup) {
+	for {
+		user, ok := <-putJobs
+		if !ok {
+			return
+		}
 		saveUserInfo(user)
 		wg.Done()
 	}
@@ -65,19 +83,22 @@ func saveUserInfo(user User) {
 	time.Sleep(time.Second)
 }
 
-func generateUsers(count int, users chan<- User, wg *sync.WaitGroup) {
+func generateUserInfo(id int, putJobs chan<- User) {
+	putJobs <- User{
+		id:    id,
+		email: fmt.Sprintf("user%d@company.com", id),
+		logs:  generateLogs(rand.Intn(1000)),
+	}
+	fmt.Printf("generated user %d\n", id)
+	time.Sleep(time.Millisecond * 100)
+}
 
+func generateUsers(count int, genJobs chan<- int, wg *sync.WaitGroup) {
 	for i := 0; i < count; i++ {
 		wg.Add(1)
-		users <- User{
-			id:    i + 1,
-			email: fmt.Sprintf("user%d@company.com", i+1),
-			logs:  generateLogs(rand.Intn(1000)),
-		}
-		fmt.Printf("generated user %d\n", i+1)
-		time.Sleep(time.Millisecond * 100)
+		genJobs <- i + 1
 	}
-	close(users)
+	close(genJobs)
 }
 
 func generateLogs(count int) []logItem {
